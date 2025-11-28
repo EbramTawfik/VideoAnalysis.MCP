@@ -1,3 +1,5 @@
+using VideoAnalysis.MCP.Models;
+
 namespace VideoAnalysis.MCP.Abstractions;
 
 /// <summary>
@@ -6,12 +8,12 @@ namespace VideoAnalysis.MCP.Abstractions;
 public interface IAnalysisResultFormatter
 {
     /// <summary>
-    /// Formats raw AI response into user-friendly presentation
+    /// Formats video analysis result with timing analytics
     /// </summary>
-    /// <param name="rawResponse">Raw response from AI model</param>
+    /// <param name="analysisResult">Analysis result with timing information</param>
     /// <param name="objectName">Name of the object that was analyzed</param>
     /// <param name="videoUrl">URL of the analyzed video</param>
     /// <param name="model">AI model used for analysis</param>
-    /// <returns>Formatted result string</returns>
-    string FormatVideoAnalysisResult(string rawResponse, string objectName, string videoUrl, string model);
+    /// <returns>Formatted result string with timing information</returns>
+    string FormatVideoAnalysisResultWithAnalytics(VideoAnalysisResult analysisResult, string objectName, string videoUrl, string model);
 }

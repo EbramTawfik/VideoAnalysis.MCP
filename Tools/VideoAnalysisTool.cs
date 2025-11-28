@@ -55,11 +55,11 @@ public class VideoAnalysisTool
             // Create analysis prompt
             var prompt = _promptGenerator.CreateVideoAnalysisPrompt(objectName);
 
-            // Analyze video using the vision AI model
-            var response = await _videoProcessingService.AnalyzeVideoUrlAsync(processedUrl, prompt, model, 400);
+            // Analyze video using the vision AI model with analytics
+            var analysisResult = await _videoProcessingService.AnalyzeVideoUrlWithAnalyticsAsync(processedUrl, prompt, model, 400);
 
-            // Parse and format the response
-            var formattedResult = _resultFormatter.FormatVideoAnalysisResult(response, objectName, processedUrl, model);
+            // Parse and format the response with timing information
+            var formattedResult = _resultFormatter.FormatVideoAnalysisResultWithAnalytics(analysisResult, objectName, processedUrl, model);
 
             _logger.LogInformation("Video URL analysis completed successfully for {ObjectName} in {VideoUrl}", objectName, videoUrl);
 

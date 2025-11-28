@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using VideoAnalysis.MCP.Abstractions;
+using VideoAnalysis.MCP.Models;
 
 namespace VideoAnalysis.MCP.Services;
 
@@ -16,82 +17,79 @@ public class VideoAnalysisResultFormatter : IAnalysisResultFormatter
         _logger = logger;
     }
 
-    /// <summary>
-    /// Formats raw AI response into user-friendly presentation
-    /// </summary>
-    /// <param name="rawResponse">Raw response from AI model</param>
-    /// <param name="objectName">Name of the object that was analyzed</param>
-    /// <param name="videoUrl">URL of the analyzed video</param>
-    /// <param name="model">AI model used for analysis</param>
-    /// <returns>Formatted result string</returns>
-    public string FormatVideoAnalysisResult(string rawResponse, string objectName, string videoUrl, string model)
-    {
-        try
-        {
-            // Try to extract JSON from the response
-            var jsonStart = rawResponse.IndexOf('{');
-            var jsonEnd = rawResponse.LastIndexOf('}');
-
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
-            {
-                return FormatJsonResponse(rawResponse, objectName, videoUrl, model, jsonStart, jsonEnd);
-            }
-            else
-            {
-                return FormatFallbackResponse(rawResponse, objectName, videoUrl, model);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error formatting analysis result, returning raw response");
-            return FormatErrorResponse(rawResponse, objectName, videoUrl);
-        }
-    }
-
-    private string FormatJsonResponse(string rawResponse, string objectName, string videoUrl, string model, int jsonStart, int jsonEnd)
-    {
-        var jsonContent = rawResponse.Substring(jsonStart, jsonEnd - jsonStart + 1);
-        var analysisResult = JsonSerializer.Deserialize<JsonElement>(jsonContent);
-
-        var detected = analysisResult.GetProperty("detected").GetBoolean();
-        var description = analysisResult.GetProperty("description").GetString() ?? "No description provided";
-
-        var result = FormatHeader(videoUrl, objectName, model);
-
-        if (detected)
-        {
-            result += $"✅ **{objectName} Detected!**\n";
-            result += $"📝 **Activity Description:**\n{description}\n";
-        }
-        else
-        {
-            result += $"❌ **No {objectName} Detected**\n";
-            result += $"📝 **Analysis Notes:** {description}\n";
-        }
-
-        return result;
-    }
-
-    private string FormatFallbackResponse(string rawResponse, string objectName, string videoUrl, string model)
-    {
-        return FormatHeader(videoUrl, objectName, model) +
-               $"📝 **Raw Response:**\n{rawResponse}";
-    }
-
-    private string FormatErrorResponse(string rawResponse, string objectName, string videoUrl)
-    {
-        return $"🎬 Video Analysis Results\n" +
-               $"📹 Video URL: {GetDisplayUrl(videoUrl)}\n" +
-               $"🔍 Object: {objectName}\n\n" +
-               $"📝 **Response:**\n{rawResponse}";
-    }
-
     private string FormatHeader(string videoUrl, string objectName, string model)
     {
         return $"🎬 Video Analysis Results\n" +
                $"📹 Video URL: {GetDisplayUrl(videoUrl)}\n" +
                $"🔍 Object: {objectName}\n" +
                $"🤖 Model: {model}\n\n";
+    }
+
+    /// <summary>
+    /// Formats video analysis result with timing analytics
+    /// </summary>
+    /// <param name="analysisResult">Analysis result with timing information</param>
+    /// <param name="objectName">Name of the object that was analyzed</param>
+    /// <param name="videoUrl">URL of the analyzed video</param>
+    /// <param name="model">AI model used for analysis</param>
+    /// <returns>Formatted result string with timing information</returns>
+    public string FormatVideoAnalysisResultWithAnalytics(VideoAnalysisResult analysisResult, string objectName, string videoUrl, string model)
+    {
+        try
+        {
+            var result = FormatHeader(videoUrl, objectName, model);
+
+            // Add timing information
+            result += "⏱️ **Processing Analytics:**\n";
+            result += $"• URL Validation: {analysisResult.Timings.ValidationTimeMs}ms\n";
+            result += $"• API Call: {analysisResult.Timings.ApiCallTimeMs}ms\n";
+            result += $"• Response Parsing: {analysisResult.Timings.ParsingTimeMs}ms\n";
+            result += $"• **Total Processing Time: {analysisResult.Timings.TotalTimeMs}ms**\n\n";
+
+            if (!analysisResult.IsSuccess)
+            {
+                result += $"❌ **Analysis Failed**\n";
+                result += $"📝 **Error:** {analysisResult.ErrorMessage}\n";
+                return result;
+            }
+
+            // Try to extract JSON from the response
+            var jsonStart = analysisResult.Content.IndexOf('{');
+            var jsonEnd = analysisResult.Content.LastIndexOf('}');
+
+            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            {
+                var jsonContent = analysisResult.Content.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                var jsonResult = JsonSerializer.Deserialize<JsonElement>(jsonContent);
+
+                var detected = jsonResult.GetProperty("detected").GetBoolean();
+                var description = jsonResult.GetProperty("description").GetString() ?? "No description provided";
+
+                if (detected)
+                {
+                    result += $"✅ **{objectName} Detected!**\n";
+                    result += $"📝 **Activity Description:**\n{description}\n";
+                }
+                else
+                {
+                    result += $"❌ **No {objectName} Detected**\n";
+                    result += $"📝 **Analysis Notes:** {description}\n";
+                }
+            }
+            else
+            {
+                result += $"📝 **Raw Response:**\n{analysisResult.Content}";
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error formatting analysis result with analytics, returning basic format");
+            return FormatHeader(videoUrl, objectName, model) +
+                   $"⏱️ **Total Processing Time: {analysisResult.Timings.TotalTimeMs}ms**\n\n" +
+                   $"📝 **Response:**\n{analysisResult.Content}";
+        }
     }
 
     private string GetDisplayUrl(string url)

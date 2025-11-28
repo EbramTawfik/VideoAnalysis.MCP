@@ -1,3 +1,5 @@
+using VideoAnalysis.MCP.Models;
+
 namespace VideoAnalysis.MCP.Abstractions;
 
 /// <summary>
@@ -6,8 +8,7 @@ namespace VideoAnalysis.MCP.Abstractions;
 public interface IVideoProcessingService
 {
     /// <summary>
-    /// Analyzes a video from a URL using a vision AI model
+    /// Analyzes a video from a URL using a vision AI model with detailed timing analytics
     /// </summary>
-    Task<string> AnalyzeVideoUrlAsync(string videoUrl, string prompt, string model, int maxTokens);
-
+    Task<VideoAnalysisResult> AnalyzeVideoUrlWithAnalyticsAsync(string videoUrl, string prompt, string model, int maxTokens);
 }

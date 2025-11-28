@@ -51,7 +51,7 @@ To test this MCP server from source code (locally) without using a built MCP ser
 
 ## Testing the MCP Server
 
-Once configured, you can ask Copilot Chat for a random number, for example, `Give me 3 random numbers`. It should prompt you to use the `get_random_number` tool on the `VideoAnalysis.MCP` MCP server and show you the results.
+Once configured, you can ask Copilot Chat to analyze a video, for example, `Analyze this video for bird activity: <video-url>`. It should prompt you to use the `analyze_video_from_url` tool on the `VideoAnalysis.MCP` MCP server and show you the results with detailed timing analytics.
 
 ## Publishing to NuGet.org
 
