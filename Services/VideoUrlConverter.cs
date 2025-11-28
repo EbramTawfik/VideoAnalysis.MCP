@@ -29,13 +29,6 @@ public class VideoUrlConverter : IVideoUrlConverter
             {
                 return ConvertGoogleDriveUrl(url);
             }
-
-            // Dropbox conversion
-            if (url.Contains("dropbox.com") && url.Contains("?dl=0"))
-            {
-                return ConvertDropboxUrl(url);
-            }
-
             // If it's already a direct URL or unknown format, return as-is
             _logger.LogInformation("Using URL as-is: {Url}", url);
             return url;
@@ -58,13 +51,6 @@ public class VideoUrlConverter : IVideoUrlConverter
         var directUrl = $"https://drive.google.com/uc?export=download&id={fileId}";
 
         _logger.LogInformation("Converted Google Drive URL: {Original} -> {Direct}", url, directUrl);
-        return directUrl;
-    }
-
-    private string ConvertDropboxUrl(string url)
-    {
-        var directUrl = url.Replace("?dl=0", "?dl=1");
-        _logger.LogInformation("Converted Dropbox URL: {Original} -> {Direct}", url, directUrl);
         return directUrl;
     }
 }
