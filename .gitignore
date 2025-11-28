@@ -1,0 +1,8 @@
+bin/
+obj/
+
+# Configuration files - Never commit these!
+*.env
+api.key
+*.key
+VideoAnalysis.MCP.sln

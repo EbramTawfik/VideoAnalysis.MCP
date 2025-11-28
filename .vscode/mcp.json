@@ -1,0 +1,14 @@
+{
+	"servers": {
+		"VideoAnalysis.MCP": {
+			"type": "stdio",
+			"command": "dotnet",
+			"args": [
+				"run",
+				"--project",
+				"./VideoAnalysis.MCP.csproj",
+			]
+		}
+	},
+	"inputs": []
+}
