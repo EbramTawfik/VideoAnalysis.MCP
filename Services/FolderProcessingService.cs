@@ -177,16 +177,16 @@ public class FolderProcessingService : IFolderProcessingService
 
             // Extract folder ID and use GoogleDriveService to get video files
             var folderId = _googleDriveService.ExtractFolderIdFromUrl(folderUrl);
-            
+
             // Use the updated GoogleDriveService that implements embedded folder view access
             var videoFiles = await _googleDriveService.GetVideoFilesFromFolderAsync(folderId);
-            
+
             foreach (var videoFile in videoFiles)
             {
                 videoUrls.Add(videoFile.WebViewUrl);
                 _logger.LogInformation("Added video URL: {VideoUrl} (Name: {VideoName})", videoFile.WebViewUrl, videoFile.Name);
             }
-            
+
             if (videoUrls.Count == 0)
             {
                 _logger.LogWarning("No video files found in folder. This may be due to:");

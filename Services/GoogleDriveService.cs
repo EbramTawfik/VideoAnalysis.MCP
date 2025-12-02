@@ -79,11 +79,11 @@ public class GoogleDriveService : IGoogleDriveService
 
             // Try to access the embedded folder view (same approach as PowerShell)
             var embeddedUrl = $"https://drive.google.com/embeddedfolderview?id={folderId}";
-            
+
             _logger.LogInformation("Attempting to access embedded folder view: {EmbeddedUrl}", embeddedUrl);
-            
+
             var response = await _httpClient.GetAsync(embeddedUrl);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Failed to access embedded folder view. Status: {StatusCode}", response.StatusCode);
@@ -96,13 +96,13 @@ public class GoogleDriveService : IGoogleDriveService
             // Extract file IDs using the same pattern as PowerShell: /file/d/([^/]+)/
             var fileIdPattern = @"/file/d/([^/]+)/";
             var matches = Regex.Matches(content, fileIdPattern);
-            
+
             _logger.LogInformation("Found {MatchCount} potential file matches", matches.Count);
-            
+
             foreach (Match match in matches)
             {
                 var fileId = match.Groups[1].Value;
-                
+
                 // Filter out the folder ID itself and ensure valid file ID format
                 if (fileId != folderId && Regex.IsMatch(fileId, @"^[a-zA-Z0-9_-]{25,}$"))
                 {
@@ -113,12 +113,12 @@ public class GoogleDriveService : IGoogleDriveService
                         WebViewUrl = $"https://drive.google.com/file/d/{fileId}/view",
                         CreatedTime = DateTime.UtcNow
                     };
-                    
+
                     videoFiles.Add(videoFile);
                     _logger.LogInformation("Found video file - ID: {FileId}, URL: {WebViewUrl}", fileId, videoFile.WebViewUrl);
                 }
             }
-            
+
             _logger.LogInformation("Successfully extracted {VideoCount} video files from folder", videoFiles.Count);
             return videoFiles;
         }
