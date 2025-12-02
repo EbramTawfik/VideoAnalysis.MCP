@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VideoAnalysis.MCP.Abstractions;
 using VideoAnalysis.MCP.Services;
+using VideoAnalysis.MCP.Tools;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -15,8 +16,12 @@ builder.Services
     .AddSingleton<IVideoUrlConverter, VideoUrlConverter>()
     .AddSingleton<IPromptGenerator, VideoAnalysisPromptGenerator>()
     .AddSingleton<IAnalysisResultFormatter, VideoAnalysisResultFormatter>()
+    .AddSingleton<IGoogleDriveService, GoogleDriveService>()
+    .AddSingleton<IFolderProcessingService, FolderProcessingService>()
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<VideoAnalysisTool>();
+    .WithTools<VideoAnalysisTool>()
+    .WithTools<FolderProcessingTool>()
+    .WithTools<VideoBatchProcessingTool>();
 
 await builder.Build().RunAsync();
