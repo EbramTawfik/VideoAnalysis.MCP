@@ -71,4 +71,57 @@ public class VideoAnalysisTool
             return $"❌ Error analyzing video: {ex.Message}";
         }
     }
+
+    /// <summary>
+    /// Performs consensus analysis by running multiple detection attempts to improve reliability
+    /// Uses "any positive" detection strategy - if ANY run detects the object, it's considered detected
+    /// Recommended for research applications where detecting presence is more important than consensus
+    /// Usage: "Analyze the video with consensus for reliable bird detection"
+    /// </summary>
+    /// <param name="videoUrl">URL to the video file (supports Google Drive, Dropbox, direct URLs)</param>
+    /// <param name="objectName">Name of the object to detect and analyze (e.g., "Bird", "Car", "Person")</param>
+    /// <param name="numberOfRuns">Number of analysis runs to perform (default: 3, recommended: 3-5)</param>
+    /// <param name="model">Vision AI model to use (default: OpenGVLab/InternVL3_5-14B-Instruct)</param>
+    /// <returns>Consensus analysis result with confidence metrics and recommendations</returns>
+    [McpServerTool, Description("Performs consensus analysis with multiple detection runs using 'any positive' strategy. If ANY run detects the object, it's considered detected. Ideal for research applications where detecting presence is critical.")]
+    public async Task<string> AnalyzeVideoWithConsensusAsync(
+        [Description("URL to the video file (Google Drive, Dropbox, or direct URL)")] string videoUrl,
+        [Description("Name of the object to detect and analyze (e.g., Bird, Car, Person)")] string objectName,
+        [Description("Number of analysis runs to perform (3-5 recommended)")] int numberOfRuns = 3,
+        [Description("Vision AI model to use")] string model = "OpenGVLab/InternVL3_5-14B-Instruct")
+    {
+        try
+        {
+            // Validate parameters
+            if (numberOfRuns < 2 || numberOfRuns > 10)
+            {
+                return "❌ Number of runs must be between 2 and 10 for meaningful consensus analysis.";
+            }
+
+            _logger.LogInformation("Processing consensus video analysis - Object: {ObjectName}, URL: {VideoUrl}, Runs: {NumberOfRuns}, Model: {Model}",
+                objectName, videoUrl, numberOfRuns, model);
+
+            // Convert sharing URLs to direct download URLs if needed
+            var processedUrl = _urlConverter.ConvertToDirectDownloadUrl(videoUrl);
+
+            // Create analysis prompt
+            var prompt = _promptGenerator.CreateVideoAnalysisPrompt(objectName);
+
+            // Perform consensus analysis
+            var consensusResult = await _videoProcessingService.AnalyzeVideoWithConsensusAsync(processedUrl, prompt, model, 400, numberOfRuns);
+
+            // Format the consensus result
+            var formattedResult = _resultFormatter.FormatConsensusAnalysisResult(consensusResult, objectName, processedUrl, model);
+
+            _logger.LogInformation("Consensus video analysis completed - Object: {ObjectName}, Final Detection: {FinalDetection}, Confidence: {ConfidenceLevel:P1}",
+                objectName, consensusResult.FinalDetection, consensusResult.ConfidenceLevel);
+
+            return formattedResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error processing consensus video analysis for {ObjectName} in {VideoUrl}", objectName, videoUrl);
+            return $"❌ Error in consensus analysis: {ex.Message}";
+        }
+    }
 }

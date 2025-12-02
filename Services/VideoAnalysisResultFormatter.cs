@@ -92,6 +92,125 @@ public class VideoAnalysisResultFormatter : IAnalysisResultFormatter
         }
     }
 
+    /// <summary>
+    /// Formats consensus analysis result with detailed metrics and recommendations
+    /// </summary>
+    /// <param name="consensusResult">Consensus analysis result</param>
+    /// <param name="objectName">Name of the object that was analyzed</param>
+    /// <param name="videoUrl">URL of the analyzed video</param>
+    /// <param name="model">AI model used for analysis</param>
+    /// <returns>Formatted consensus result string with metrics and recommendations</returns>
+    public string FormatConsensusAnalysisResult(ConsensusAnalysisResult consensusResult, string objectName, string videoUrl, string model)
+    {
+        try
+        {
+            var result = "🎯 Consensus Video Analysis Results\n" +
+                        $"📹 Video URL: {GetDisplayUrl(videoUrl)}\n" +
+                        $"🔍 Object: {objectName}\n" +
+                        $"🤖 Model: {model}\n" +
+                        $"🔄 Analysis Runs: {consensusResult.Metrics.TotalRuns}\n\n";
+
+            // Consensus Summary
+            result += "📊 **Consensus Summary:**\n";
+            if (consensusResult.FinalDetection)
+            {
+                result += $"✅ **{objectName} DETECTED** (Consensus: {consensusResult.Metrics.PositiveDetections}/{consensusResult.Metrics.TotalRuns} runs)\n";
+            }
+            else
+            {
+                result += $"❌ **NO {objectName} DETECTED** (Consensus: {consensusResult.Metrics.NegativeDetections}/{consensusResult.Metrics.TotalRuns} runs)\n";
+            }
+
+            result += $"🎯 **Confidence Level:** {consensusResult.ConfidenceLevel:P1}\n";
+            result += $"📈 **Detection Rate:** {(double)consensusResult.Metrics.PositiveDetections / consensusResult.Metrics.TotalRuns:P1}\n";
+            result += $"⏱️ **Average Processing Time:** {consensusResult.Metrics.AverageProcessingTimeMs:F0}ms\n\n";
+
+            // Quality Flags
+            if (consensusResult.Metrics.QualityFlags.Any())
+            {
+                result += "🏷️ **Quality Indicators:**\n";
+                foreach (var flag in consensusResult.Metrics.QualityFlags)
+                {
+                    var emoji = flag switch
+                    {
+                        "HIGH_DETECTION_RATE" => "🟢",
+                        "MODERATE_DETECTION_RATE" => "🟡",
+                        "LOW_DETECTION_RATE" => "🔴",
+                        "CONSISTENT_NEGATIVE" => "🔵",
+                        "HIGH_CONSISTENCY" => "🟢",
+                        "MODERATE_CONSISTENCY" => "🟡",
+                        "LOW_CONSISTENCY" => "🔴",
+                        "UNRELIABLE_DETECTION" => "⚠️",
+                        "ANALYSIS_FAILED" => "❌",
+                        _ => "ℹ️"
+                    };
+                    result += $"• {emoji} {flag.Replace('_', ' ')}\n";
+                }
+                result += "\n";
+            }
+
+            // Individual Run Details
+            result += "🔍 **Individual Run Results:**\n";
+            for (int i = 0; i < consensusResult.IndividualResults.Count; i++)
+            {
+                var run = consensusResult.IndividualResults[i];
+                var statusEmoji = run.ObjectDetected ? "✅" : "❌";
+                var errorInfo = !string.IsNullOrEmpty(run.ErrorMessage) ? " ⚠️" : "";
+
+                result += $"• **Run {run.AttemptNumber}:** {statusEmoji} {(run.ObjectDetected ? "Detected" : "Not Detected")} " +
+                         $"({run.Timings.TotalTimeMs}ms){errorInfo}\n";
+            }
+            result += "\n";
+
+            // Final Description
+            result += "📝 **Analysis Description:**\n";
+            result += consensusResult.ConsensusDescription + "\n\n";
+
+            // Recommendations
+            if (!string.IsNullOrEmpty(consensusResult.RecommendationNote))
+            {
+                result += "💡 **Recommendations:**\n";
+                result += consensusResult.RecommendationNote + "\n\n";
+            }
+
+            // Research Notes
+            result += "🔬 **Research Notes:**\n";
+            result += $"• This consensus analysis used {consensusResult.Metrics.TotalRuns} independent detection runs\n";
+            result += $"• Results are suitable for research applications requiring {(consensusResult.ConfidenceLevel >= 0.8 ? "high" : consensusResult.ConfidenceLevel >= 0.6 ? "moderate" : "low")} confidence\n";
+
+            var detectionRate = (double)consensusResult.Metrics.PositiveDetections / consensusResult.Metrics.TotalRuns;
+            var variabilityDescription = detectionRate == 1.0 ? "consistent positive" :
+                                       detectionRate == 0.0 ? "consistent negative" :
+                                       detectionRate >= 0.6 ? "mostly positive" : "variable";
+            result += $"• Detection variability: {(1 - detectionRate):P1} suggests {variabilityDescription} conditions\n";
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error formatting consensus analysis result, returning basic format");
+
+            var basicResult = "🎯 Consensus Video Analysis Results\n" +
+                             $"📹 Video URL: {GetDisplayUrl(videoUrl)}\n" +
+                             $"🔍 Object: {objectName}\n" +
+                             $"🔄 Analysis Runs: {consensusResult.Metrics.TotalRuns}\n\n";
+
+            if (consensusResult.FinalDetection)
+            {
+                basicResult += $"✅ **{objectName} DETECTED** (Consensus)\n";
+            }
+            else
+            {
+                basicResult += $"❌ **NO {objectName} DETECTED** (Consensus)\n";
+            }
+
+            basicResult += $"🎯 **Confidence:** {consensusResult.ConfidenceLevel:P1}\n\n";
+            basicResult += consensusResult.ConsensusDescription;
+
+            return basicResult;
+        }
+    }
+
     private string GetDisplayUrl(string url)
     {
         try

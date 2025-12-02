@@ -329,6 +329,279 @@ public class VideoProcessingService : IVideoProcessingService, IDisposable
     }
 
     /// <summary>
+    /// Performs consensus analysis by running multiple detection attempts
+    /// </summary>
+    /// <param name="videoUrl">URL to the video file</param>
+    /// <param name="prompt">Prompt for the AI model</param>
+    /// <param name="model">The vision model to use</param>
+    /// <param name="maxTokens">Maximum tokens in response</param>
+    /// <param name="numberOfRuns">Number of analysis runs to perform</param>
+    /// <returns>Consensus analysis result with detailed metrics</returns>
+    public async Task<ConsensusAnalysisResult> AnalyzeVideoWithConsensusAsync(string videoUrl, string prompt, string model, int maxTokens, int numberOfRuns = 3)
+    {
+        var consensusResult = new ConsensusAnalysisResult();
+        var overallStopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            _logger.LogInformation("Starting consensus analysis with {NumberOfRuns} runs for URL: {VideoUrl}", numberOfRuns, videoUrl);
+
+            var tasks = new List<Task<DetectionResult>>();
+
+            // Launch all analysis runs
+            for (int i = 0; i < numberOfRuns; i++)
+            {
+                int attemptNumber = i + 1;
+                tasks.Add(PerformSingleDetectionAsync(videoUrl, prompt, model, maxTokens, attemptNumber));
+
+                // Add small delay between requests to avoid overwhelming the API
+                if (i < numberOfRuns - 1)
+                {
+                    await Task.Delay(500);
+                }
+            }
+
+            // Wait for all tasks to complete
+            var results = await Task.WhenAll(tasks);
+            consensusResult.IndividualResults = results.ToList();
+
+            // Analyze consensus
+            AnalyzeConsensus(consensusResult);
+
+            overallStopwatch.Stop();
+            _logger.LogInformation("Consensus analysis completed in {TotalTime}ms with {PositiveDetections}/{TotalRuns} positive detections",
+                overallStopwatch.ElapsedMilliseconds, consensusResult.Metrics.PositiveDetections, consensusResult.Metrics.TotalRuns);
+
+            return consensusResult;
+        }
+        catch (Exception ex)
+        {
+            overallStopwatch.Stop();
+            _logger.LogError(ex, "Consensus analysis failed after {TotalTime}ms: {ErrorMessage}", overallStopwatch.ElapsedMilliseconds, ex.Message);
+
+            consensusResult.RecommendationNote = $"Consensus analysis failed: {ex.Message}";
+            consensusResult.Metrics.QualityFlags.Add("ANALYSIS_FAILED");
+            return consensusResult;
+        }
+    }
+
+    /// <summary>
+    /// Performs a single detection attempt
+    /// </summary>
+    private async Task<DetectionResult> PerformSingleDetectionAsync(string videoUrl, string prompt, string model, int maxTokens, int attemptNumber)
+    {
+        var detectionResult = new DetectionResult { AttemptNumber = attemptNumber };
+
+        try
+        {
+            _logger.LogInformation("Starting detection attempt {AttemptNumber}", attemptNumber);
+
+            var analysisResult = await AnalyzeVideoUrlWithAnalyticsAsync(videoUrl, prompt, model, maxTokens);
+
+            detectionResult.Timings = analysisResult.Timings;
+            detectionResult.ErrorMessage = analysisResult.ErrorMessage;
+
+            if (analysisResult.IsSuccess)
+            {
+                // Parse the response to determine if object was detected
+                ParseDetectionResponse(analysisResult.Content, detectionResult);
+            }
+            else
+            {
+                detectionResult.ObjectDetected = false;
+                detectionResult.Description = $"Analysis failed: {analysisResult.ErrorMessage}";
+            }
+
+            _logger.LogInformation("Detection attempt {AttemptNumber} completed: {ObjectDetected} (Time: {TotalTime}ms)",
+                attemptNumber, detectionResult.ObjectDetected, detectionResult.Timings.TotalTimeMs);
+
+            return detectionResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Detection attempt {AttemptNumber} failed: {ErrorMessage}", attemptNumber, ex.Message);
+            detectionResult.ObjectDetected = false;
+            detectionResult.ErrorMessage = ex.Message;
+            detectionResult.Description = $"Attempt failed: {ex.Message}";
+            return detectionResult;
+        }
+    }
+
+    /// <summary>
+    /// Parses the AI response to determine detection results
+    /// </summary>
+    private void ParseDetectionResponse(string response, DetectionResult result)
+    {
+        try
+        {
+            var lowerResponse = response.ToLowerInvariant();
+
+            // Enhanced detection logic
+            var positiveIndicators = new[] { "detected", "visible", "present", "found", "spotted", "observed", "appears", "perches", "flying", "movement" };
+            var negativeIndicators = new[] { "no", "not detected", "not visible", "not present", "not found", "absent", "cannot see", "unable to detect" };
+
+            var positiveScore = positiveIndicators.Count(indicator => lowerResponse.Contains(indicator));
+            var negativeScore = negativeIndicators.Count(indicator => lowerResponse.Contains(indicator));
+
+            // Determine detection based on indicators
+            if (positiveScore > negativeScore && positiveScore > 0)
+            {
+                result.ObjectDetected = true;
+                result.ConfidenceScore = Math.Min(0.95, 0.5 + (positiveScore * 0.1));
+            }
+            else if (negativeScore > positiveScore)
+            {
+                result.ObjectDetected = false;
+                result.ConfidenceScore = Math.Min(0.95, 0.5 + (negativeScore * 0.1));
+            }
+            else
+            {
+                // Ambiguous response
+                result.ObjectDetected = false;
+                result.ConfidenceScore = 0.3; // Low confidence
+            }
+
+            result.Description = response;
+
+            _logger.LogDebug("Parsed detection response: Detected={ObjectDetected}, Confidence={ConfidenceScore}, PositiveScore={PositiveScore}, NegativeScore={NegativeScore}",
+                result.ObjectDetected, result.ConfidenceScore, positiveScore, negativeScore);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse detection response, defaulting to no detection");
+            result.ObjectDetected = false;
+            result.ConfidenceScore = 0.1;
+            result.Description = response;
+        }
+    }
+
+    /// <summary>
+    /// Analyzes consensus from multiple detection results
+    /// </summary>
+    private void AnalyzeConsensus(ConsensusAnalysisResult consensusResult)
+    {
+        var results = consensusResult.IndividualResults;
+        var metrics = consensusResult.Metrics;
+
+        metrics.TotalRuns = results.Count;
+        metrics.PositiveDetections = results.Count(r => r.ObjectDetected);
+        metrics.NegativeDetections = metrics.TotalRuns - metrics.PositiveDetections;
+
+        if (results.Any(r => r.Timings.TotalTimeMs > 0))
+        {
+            metrics.AverageProcessingTimeMs = results
+                .Where(r => r.Timings.TotalTimeMs > 0)
+                .Average(r => r.Timings.TotalTimeMs);
+        }
+
+        // Calculate detection consistency (how often the majority result occurs)
+        var majorityDetection = metrics.PositiveDetections > metrics.NegativeDetections;
+        var majorityCount = Math.Max(metrics.PositiveDetections, metrics.NegativeDetections);
+        metrics.DetectionConsistency = (double)majorityCount / metrics.TotalRuns;
+
+        // Determine final detection based on ANY positive detection (not majority vote)
+        consensusResult.FinalDetection = metrics.PositiveDetections > 0;
+
+        // Calculate confidence level based on detection rate (for "any positive" strategy)
+        var detectionRate = (double)metrics.PositiveDetections / metrics.TotalRuns;
+
+        if (metrics.PositiveDetections > 0)
+        {
+            // If any detection found, confidence increases with detection rate
+            if (detectionRate >= 0.6)
+            {
+                consensusResult.ConfidenceLevel = 0.9;
+                metrics.QualityFlags.Add("HIGH_DETECTION_RATE");
+            }
+            else if (detectionRate >= 0.4)
+            {
+                consensusResult.ConfidenceLevel = 0.7;
+                metrics.QualityFlags.Add("MODERATE_DETECTION_RATE");
+            }
+            else
+            {
+                consensusResult.ConfidenceLevel = 0.5;
+                metrics.QualityFlags.Add("LOW_DETECTION_RATE");
+            }
+        }
+        else
+        {
+            // No detections found
+            consensusResult.ConfidenceLevel = 0.8; // High confidence in negative result
+            metrics.QualityFlags.Add("CONSISTENT_NEGATIVE");
+        }
+
+        // Generate consensus description
+        if (consensusResult.FinalDetection)
+        {
+            var positiveResults = results.Where(r => r.ObjectDetected).ToList();
+            if (positiveResults.Any())
+            {
+                // Use the most detailed positive description
+                consensusResult.ConsensusDescription = positiveResults
+                    .OrderByDescending(r => r.Description.Length)
+                    .First().Description;
+            }
+        }
+        else
+        {
+            consensusResult.ConsensusDescription = "No object detected based on consensus analysis.";
+        }
+
+        // Add quality recommendations
+        GenerateRecommendations(consensusResult);
+
+        _logger.LogInformation("Consensus analysis: {FinalDetection} with {ConfidenceLevel:P1} confidence ({PositiveDetections}/{TotalRuns} detections, Detection Rate: {DetectionRate:P1})",
+            consensusResult.FinalDetection, consensusResult.ConfidenceLevel, metrics.PositiveDetections, metrics.TotalRuns, detectionRate);
+    }
+
+    /// <summary>
+    /// Generates recommendations based on consensus analysis
+    /// </summary>
+    private void GenerateRecommendations(ConsensusAnalysisResult result)
+    {
+        var recommendations = new List<string>();
+        var detectionRate = (double)result.Metrics.PositiveDetections / result.Metrics.TotalRuns;
+
+        if (result.FinalDetection && detectionRate < 0.4)
+        {
+            recommendations.Add("⚠️ Low detection rate suggests challenging detection conditions or intermittent object presence.");
+            recommendations.Add("💡 Consider: Manual verification or additional analysis runs for confirmation.");
+        }
+
+        if (!result.FinalDetection)
+        {
+            recommendations.Add("📊 No positive detections found across all analysis runs - high confidence in negative result.");
+        }
+
+        if (result.IndividualResults.Any(r => !string.IsNullOrEmpty(r.ErrorMessage)))
+        {
+            var errorCount = result.IndividualResults.Count(r => !string.IsNullOrEmpty(r.ErrorMessage));
+            recommendations.Add($"⚠️ {errorCount}/{result.Metrics.TotalRuns} analysis attempts encountered errors.");
+        }
+
+        if (result.Metrics.AverageProcessingTimeMs > 8000)
+        {
+            recommendations.Add("⏱️ High processing times detected - consider video optimization for better performance.");
+        }
+
+        if (result.ConfidenceLevel >= 0.8)
+        {
+            recommendations.Add("✅ High confidence result - suitable for research use.");
+        }
+        else if (result.ConfidenceLevel >= 0.6)
+        {
+            recommendations.Add("⚠️ Moderate confidence - consider additional verification.");
+        }
+        else
+        {
+            recommendations.Add("❌ Low confidence result - manual verification strongly recommended.");
+        }
+
+        result.RecommendationNote = string.Join(" ", recommendations);
+    }
+
+    /// <summary>
     /// Dispose of resources
     /// </summary>
     public void Dispose()
