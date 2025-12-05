@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using CsvHelper;
 using Microsoft.Extensions.Logging;
 using VideoAnalysis.MCP.Abstractions;
@@ -334,6 +335,12 @@ public class FolderProcessingService : IFolderProcessingService
         {
             _logger.LogInformation("Saving {ResultCount} results to CSV: {CsvPath}", results.Count, csvPath);
 
+            // Parse JSON descriptions and update results
+            foreach (var result in results)
+            {
+                result.Description = ParseJsonDescription(result.Description);
+            }
+
             // Ensure directory exists
             var directory = Path.GetDirectoryName(csvPath);
             if (!string.IsNullOrEmpty(directory))
@@ -355,6 +362,38 @@ public class FolderProcessingService : IFolderProcessingService
         {
             _logger.LogError(ex, "Error saving results to CSV: {CsvPath}", csvPath);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Parses JSON description and extracts only the description property
+    /// </summary>
+    private string ParseJsonDescription(string description)
+    {
+        if (string.IsNullOrEmpty(description))
+            return description;
+
+        try
+        {
+            // Try to parse as JSON
+            var analysisDescription = JsonSerializer.Deserialize<AnalysisDescription>(description, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            // Return only the description property
+            return analysisDescription?.Description ?? description;
+        }
+        catch (JsonException)
+        {
+            // If JSON parsing fails, return the original description
+            _logger.LogDebug("Description is not valid JSON, using original: {Description}", description);
+            return description;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error parsing JSON description, using original: {Description}", description);
+            return description;
         }
     }
 

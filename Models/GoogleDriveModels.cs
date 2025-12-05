@@ -1,4 +1,6 @@
 using CsvHelper.Configuration.Attributes;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace VideoAnalysis.MCP.Models;
 
@@ -61,4 +63,16 @@ public class VideoProcessingResult
 
     [Name("Processed At")]
     public DateTime ProcessedAt { get; set; }
+}
+
+/// <summary>
+/// Model for parsing JSON descriptions from video analysis
+/// </summary>
+public class AnalysisDescription
+{
+    [JsonPropertyName("detected")]
+    public bool Detected { get; set; }
+
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
 }
