@@ -67,61 +67,6 @@ public class FolderProcessingTool
     }
 
     /// <summary>
-    /// Processes multiple video URLs and saves results to CSV
-    /// This is an alternative method when folder listing is not available
-    /// </summary>
-    /// <param name="videoUrls">List of video URLs separated by newlines or commas</param>
-    /// <param name="objectName">Name of the object to detect</param>
-    /// <param name="model">Vision AI model to use</param>
-    /// <param name="outputCsvPath">Optional path for the output CSV file</param>
-    /// <param name="useConsensus">Whether to use consensus analysis</param>
-    /// <param name="consensusRuns">Number of analysis runs for consensus</param>
-    /// <returns>Summary of processing results and CSV file location</returns>
-    [McpServerTool, Description("Processes multiple video URLs and saves bird detection results to CSV. Alternative method when folder listing is not available.")]
-    public async Task<string> ProcessVideoUrlListAsync(
-        [Description("List of video URLs separated by newlines or commas")] string videoUrls,
-        [Description("Name of the object to detect and analyze (e.g., Bird, Car, Person)")] string objectName = "Bird",
-        [Description("Vision AI model to use")] string model = "OpenGVLab/InternVL3_5-14B-Instruct",
-        [Description("Optional path for output CSV file")] string? outputCsvPath = null,
-        [Description("Whether to use consensus analysis")] bool useConsensus = false,
-        [Description("Number of analysis runs for consensus")] int consensusRuns = 3)
-    {
-        try
-        {
-            _logger.LogInformation("Processing video URL list - Object: {ObjectName}, Consensus: {UseConsensus}", objectName, useConsensus);
-
-            // Parse video URLs
-            var urls = ParseVideoUrls(videoUrls);
-
-            if (!urls.Any())
-            {
-                return "❌ No valid video URLs provided. Please provide video URLs separated by newlines or commas.";
-            }
-
-            // Create a mock folder URL for processing
-            var mockFolderUrl = "manual_input_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-
-            // Note: This is a simplified approach. In a real implementation, you'd modify the service
-            // to handle direct URL lists without requiring a folder URL.
-
-            return $"📋 **Video URL List Processing**\n\n" +
-                   $"Found {urls.Count} video URLs to process:\n" +
-                   string.Join("\n", urls.Select((url, i) => $"{i + 1}. {Path.GetFileName(new Uri(url).LocalPath)}")) + "\n\n" +
-                   $"💡 **Next Steps:**\n" +
-                   $"For now, please use the ProcessGoogleDriveFolderAsync tool with individual video URLs, " +
-                   $"or implement a direct URL processing feature in the FolderProcessingService.\n\n" +
-                   $"🔧 **Technical Note:**\n" +
-                   $"This tool demonstrates the interface. To fully implement this feature, modify " +
-                   $"FolderProcessingService to accept direct URL lists as an alternative to folder discovery.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ Error processing video URL list");
-            return $"❌ Error processing video URLs: {ex.Message}";
-        }
-    }
-
-    /// <summary>
     /// Formats the folder processing result into a readable response
     /// </summary>
     private string FormatFolderProcessingResult(VideoAnalysis.MCP.Models.FolderProcessingResult result)
@@ -192,35 +137,9 @@ public class FolderProcessingTool
             response += $"2. The folder URL is incorrect\n";
             response += $"3. The folder doesn't contain video files\n";
             response += $"4. Google Drive API authentication is required\n\n";
-            response += $"💡 **Workaround:** Use the ProcessVideoUrlListAsync tool with individual video URLs.";
+            response += $"💡 **Workaround:** Use the individual video analysis tool for single videos.";
         }
 
         return response;
-    }
-
-    /// <summary>
-    /// Parses a string containing multiple video URLs
-    /// </summary>
-    private List<string> ParseVideoUrls(string videoUrls)
-    {
-        if (string.IsNullOrWhiteSpace(videoUrls))
-            return new List<string>();
-
-        var urls = new List<string>();
-
-        // Split by newlines and commas
-        var rawUrls = videoUrls.Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var rawUrl in rawUrls)
-        {
-            var trimmedUrl = rawUrl.Trim();
-            if (Uri.TryCreate(trimmedUrl, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            {
-                urls.Add(trimmedUrl);
-            }
-        }
-
-        return urls;
     }
 }

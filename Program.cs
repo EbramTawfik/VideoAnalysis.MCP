@@ -21,7 +21,6 @@ builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
     .WithTools<VideoAnalysisTool>()
-    .WithTools<FolderProcessingTool>()
-    .WithTools<VideoBatchProcessingTool>();
+    .WithTools<FolderProcessingTool>();
 
 await builder.Build().RunAsync();
