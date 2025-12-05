@@ -38,9 +38,6 @@ public class FolderProcessingResult
 /// </summary>
 public class VideoProcessingResult
 {
-    [Name("Video Name")]
-    public string VideoName { get; set; } = string.Empty;
-
     [Name("Has Bird")]
     public bool HasBird { get; set; }
 

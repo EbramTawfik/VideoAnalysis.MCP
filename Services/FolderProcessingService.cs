@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using VideoAnalysis.MCP.Abstractions;
 using VideoAnalysis.MCP.Models;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 
 namespace VideoAnalysis.MCP.Services;
 
@@ -82,7 +81,6 @@ public class FolderProcessingService : IFolderProcessingService
                 {
                     new VideoProcessingResult
                     {
-                        VideoName = "FOLDER_DISCOVERY_FAILED",
                         HasBird = false,
                         Description = "Could not automatically discover videos in folder. Please provide individual video URLs or ensure folder is publicly accessible.",
                         Status = "Failed",
@@ -151,7 +149,6 @@ public class FolderProcessingService : IFolderProcessingService
             // Add error result
             result.Results.Add(new VideoProcessingResult
             {
-                VideoName = "FOLDER_PROCESSING_ERROR",
                 HasBird = false,
                 Description = $"Folder processing failed: {ex.Message}",
                 Status = "Failed",
@@ -218,7 +215,6 @@ public class FolderProcessingService : IFolderProcessingService
         var result = new VideoProcessingResult
         {
             VideoUrl = videoUrl,
-            VideoName = ExtractVideoNameFromUrl(videoUrl),
             ProcessedAt = DateTime.UtcNow
         };
 
@@ -226,7 +222,7 @@ public class FolderProcessingService : IFolderProcessingService
 
         try
         {
-            _logger.LogInformation("Processing video: {VideoName} ({VideoUrl})", result.VideoName, videoUrl);
+            _logger.LogInformation("Processing video: ({VideoUrl})", videoUrl);
 
             // Convert to direct download URL if needed
             var processedUrl = _urlConverter.ConvertToDirectDownloadUrl(videoUrl);
@@ -269,8 +265,8 @@ public class FolderProcessingService : IFolderProcessingService
 
             stopwatch.Stop();
 
-            _logger.LogInformation("Completed processing video: {VideoName}, HasBird: {HasBird}, Time: {ProcessingTime}ms",
-                result.VideoName, result.HasBird, stopwatch.ElapsedMilliseconds);
+            _logger.LogInformation("Completed processing video: ({VideoUrl}), HasBird: {HasBird}, Time: {ProcessingTime}ms",
+                videoUrl, result.HasBird, stopwatch.ElapsedMilliseconds);
 
             return result;
         }
@@ -282,40 +278,8 @@ public class FolderProcessingService : IFolderProcessingService
             result.Description = $"Processing error: {ex.Message}";
             result.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
 
-            _logger.LogError(ex, "Error processing video: {VideoName} ({VideoUrl})", result.VideoName, videoUrl);
+            _logger.LogError(ex, "Error processing video: ({VideoUrl})", videoUrl);
             return result;
-        }
-    }
-
-    /// <summary>
-    /// Extracts a video name from its URL
-    /// </summary>
-    private string ExtractVideoNameFromUrl(string videoUrl)
-    {
-        try
-        {
-            // Try to extract file name from URL
-            var uri = new Uri(videoUrl);
-            var fileName = Path.GetFileName(uri.LocalPath);
-
-            if (!string.IsNullOrEmpty(fileName) && fileName != "/")
-            {
-                return fileName;
-            }
-
-            // For Google Drive URLs, extract ID and use as name
-            var driveMatch = Regex.Match(videoUrl, @"[?&]id=([^&]+)");
-            if (driveMatch.Success)
-            {
-                return $"DriveFile_{driveMatch.Groups[1].Value}";
-            }
-
-            // Fallback to URL segment
-            return $"Video_{DateTime.Now:HHmmss}";
-        }
-        catch
-        {
-            return $"Unknown_Video_{Guid.NewGuid().ToString()[..8]}";
         }
     }
 

@@ -99,7 +99,7 @@ public class FolderProcessingTool
             foreach (var videoResult in successfulResults)
             {
                 var status = videoResult.HasBird ? "🐦 Bird Detected" : "❌ No Bird";
-                response += $"• {videoResult.VideoName}: {status}\n";
+                response += $"•{status}\n";
                 if (videoResult.HasBird)
                 {
                     var shortDescription = videoResult.Description.Length > 100
@@ -121,7 +121,7 @@ public class FolderProcessingTool
             var failedResults = result.Results.Where(r => r.Status != "Success");
             foreach (var failure in failedResults.Take(3))
             {
-                response += $"• {failure.VideoName}: {failure.ErrorMessage}\n";
+                response += $"• {failure.ErrorMessage}\n";
             }
         }
 
